@@ -37,6 +37,13 @@ users = {'id': 0,
          'name': 'Evan',
          'number': '181'
         }
+
+@app.route('/user-add', methods=['GET', 'POST'])
+def user_add():
+    name = request.form.get('name')
+    print(f'{name}')
+    return 'done'
+
 @app.route('/')
 def index():
     return jsonify(users)
@@ -55,7 +62,7 @@ def index():
 #            user_number = 18162882093
 #        responseData = sms.send_message(
 #                {
-#                    "from": number,
+#                    "fmerom": number,
 #                    "to": user_number,
 #                    "text": message_ready,
 #                }

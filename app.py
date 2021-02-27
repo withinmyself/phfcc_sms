@@ -16,33 +16,34 @@ db = SQLAlchemy(app)
 # from database import Members, Messages
 
 class Members(db.Model):
-    tablename__ = 'member'
+    tablename__ = 'user'
 
     id = db.Column(db.Integer, primary_key=True)
-    phone_number = db.Column(db.Integer)
     first_name = db.Column(db.String())
     last_name = db.Column(db.String())
-    is_subscriber = db.Column(db.Boolean())
+    # is_subscriber = db.Column(db.Boolean())
 
-    def __init__(self, phone_number, first_name, last_name, is_subscriber=True):
-        self.phone_number = phone_number
+    def __init__(self, first_name, last_name):
+        #    self.phone_number = phone_number
         self.first_name = first_name
         self.last_name = last_name
-        self.is_subscriber = is_subscriber
 
     def __repr__(self):
-        return f'{self.last_name}, {self.first_name}, {self.phone_number    }'
+        return f'{self.last_name}, {self.first_name}'
 
-users = {'id': 0,
-         'name': 'Evan',
-         'number': '181'
-        }
 
 @app.route('/user-add', methods=['GET', 'POST'])
 def user_add():
-    name = request.form.get('name')
-    print(f'{name}')
-    return 'done'
+    request_data = request.get_json()
+    name = request_data['name']
+    new_user = Members(str(name), 'Deubner')
+    db.session.add(new_user)
+    db.session.commit()
+
+    evan = Members.query.filter_by(first_name='Evan').first()
+    my_name = evan.first_name
+
+    return (f'The name is {my_name}')
 
 @app.route('/')
 def index():

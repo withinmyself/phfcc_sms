@@ -1,6 +1,12 @@
 from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 import json
+import schedule_handler
+from schedule_handler import AlertScheduler
+from message_handler import SendSMS
+import schedule
+import time
+
 
 from config import redis_client
 
@@ -9,7 +15,7 @@ app.config.from_object(str(redis_client.get('APP_SETTINGS').decode('utf-8')))
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 
-
+schedule_obj = AlertScheduler('monday')
 
 # Database models for PostgreSQL and SQLAlchemy
 class Members(db.Model):
@@ -108,11 +114,19 @@ def add_user():
             return (f'The number {check_members.phone_number} is already saved in our system under the name \
                     {check_members.first_name} {check_members.last_name}')
 
+
     except AttributeError:
-        new_member = Members(phone_number=phone_number, \
-        first_name=first_name, last_name=last_name)
+        pass
+
+
+    new_member = Members(phone_number=phone_number,first_name=first_name, last_name=last_name)
+
+    try:
         db.session.add(new_member)
         db.session.commit()
+
+    except:
+        return (f'Phone Number already registered')
 
     return (f'Thank you {new_member.first_name} {new_member.last_name}. \
             You will start receiving text alerts at {new_member.phone_number}'), 201
@@ -176,5 +190,40 @@ def reports():
     else:
         return 404
 
+
+
+@app.route('/sms', methods=['GET', 'POST'])
+def sms():
+    request_data = request.args
+    sms = SendSMS()
+    try:
+        sms.send_sms(request_data['number'], request_data['message'])
+        return 'Completed', 200
+    except KeyError as e:
+        pass
+
+    try:
+        if request_data['command'] == 'send_all':
+            sms.sms_send_all();
+            return 200
+    except KeyError as e:
+        return f'Returned an error -> {e}'
+
+    return 404
+@app.route('/stop-scheduler', methods=['GET', 'POST'])
+def stop_scheduler():
+    schedule_obj.stop_job()
+    return 'Stopped', 200
+
+
+
+
+
+
+
+
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug = True)
+

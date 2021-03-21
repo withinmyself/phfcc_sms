@@ -29,15 +29,17 @@ class Members(db.Model):
     first_name = db.Column(db.String())
     last_name = db.Column(db.String())
     is_subscriber = db.Column(db.Boolean())
+    provider = db.Column(db.String())
 
-    def __init__(self, phone_number, first_name, last_name, is_subscriber=True):
+    def __init__(self, phone_number, first_name, last_name, provider='None', is_subscriber=True):
         self.phone_number = phone_number
         self.first_name = first_name
         self.last_name = last_name
         self.is_subscriber = is_subscriber
+        self.provider = provider
 
     def __repr__(self):
-        return f'{self.last_name}, {self.first_name}, {self.phone_number}'
+        return f'{self.last_name}, {self.first_name}, {self.phone_number}, {self.provider}'
 
 class Messages(db.Model):
     __tablename__ = 'phfcc_messages'
@@ -70,31 +72,74 @@ class SendSMS():
         self._prayer_chain = Messages.query.filter_by(message_type='Prayer Chain').first()
         self._username = str(self._redis_client.get('SMS_USER').decode('utf-8'))
         self._password = str(self._redis_client.get('SMS_PASS').decode('utf-8'))
+        self.message_type = None
 
+    def set_provider(self, number):
+        with smtplib.SMTP('smtp.gmail.com', 587) as smtp:
+            smtp.starttls()
+            smtp.login(self._username, self._password)
+            from_mail = 'PHFCC'
+            tmobile = f'{number}@tmomail.net'
+            sprint = f'{number}@messaging.sprintpcs.com'
+            verizon = f'{number}@vtext.com'
+            usscellular = f'{number}@email.uscc.net'
+            virgin = f'{number}@vmobl.com'
+            att = f'{number}@txt.att.net'
+            body = 'Setting provider.'
+            message = ("From: %s\r\n" % from_mail + "To: %s\r\n" % sprint + "Subject: %s\r\n" % self.message_type + "\r\n" + body)
+            providers_refused = []
+            providers = ['SPRINT', 'TMOBILE', 'VERIZON', 'USSCELLULAR', 'VIRGIN', 'ATT']
+            try:
+                spr = smtp.sendmail(from_mail, sprint, message)
+                print(spr)
+            except smtplib.SMTPRecipientsRefused:
+                providers_refused.append('SPRINT')
+            try:
+                smtp.sendmail(from_mail, tmobile, message)
+            except smtplib.SMTPRecipientsRefused:
+                providers_refused.append('TMOBILE')
+            try:
+                smtp.sendmail(from_mail, verizon, message)
+            except smtplib.SMTPRecipientsRefused:
+                providers_refused.append('VERIZON')
+            try:
+                smtp.sendmail(from_mail, usscellular, message)
+            except smtplib.SMTPRecipientsRefused:
+                providers_refused.append('USSCELLULAR')
+            try:
+                smtp.sendmail(from_mail, virgin, message)
+            except smtplib.SMTPRecipientsRefused:
+                providers_refused.append('VIRGIN')
+            try:
+                smtp.sendmail(from_mail, att, message)
+            except smtplib.SMTPRecipientsRefused:
+                providers_refused.append('ATT')
 
-    def send_sms_all(self, message_type):
+            for provider in providers:
+                if provider not in providers_refused:
+                    return provider
+
+            return 'None'
+
+    def send_sms_all(self, message_type=None, message=None):
         members_to_text = Members.query.all()
         self.message_type = message_type
         for member in members_to_text:
+            if message_type == 'CUSTOM':
+                self.send_sms(str(member.phone_number), message)
             if message_type == 'ALL':
                 self.send_sms(str(member.phone_number), self._covid_message.message)
                 self.send_sms(str(member.phone_number), self._weather_message.message)
                 self.send_sms(str(member.phone_number), self._meetings.message)
                 self.send_sms(str(member.phone_number), self._prayer_chain.message)
-                break
-                return 'Sent'
             elif message_type == 'Covid':
                 self.send_sms(str(member.phone_number), self._covid_message.message)
-                return 'Sent'
             elif message_type == 'Weather':
                 self.send_sms(str(member.phone_number), self._weather_message.message)
-                return 'Sent'
             elif message_type == 'Meetings':
                 self.send_sms(str(member.phone_number), self._meetings.message)
-                return 'Sent'
             elif message_type == 'Prayer Chain':
                 self.send_sms(str(member.phone_number), self._prayer_chain.message)
-                return 'Sent'
             else:
                 return 'Message Type Not Found.'
         return '200'
@@ -102,19 +147,35 @@ class SendSMS():
 
 
     def send_sms(self, number, msg):
+        if self.message_type is None:
+            self.message_type = 'PHFCC Text Alert'
         with smtplib.SMTP('smtp.gmail.com', 587) as smtp:
             smtp.starttls()
             smtp.login(self._username, self._password)
             from_mail = 'PHFCC'
-            to = f'{number}@tmomail.net'
+            tmobile = f'{number}@tmomail.net'
+            sprint = f'{number}@messaging.sprintpcs.com'
+            verizon = f'{number}@vtext.com'
+            usscellular = f'{number}@email.uscc.net'
+            virgin = f'{number}@vmobl.com'
+            att = f'{number}@txt.att.net'
             body = msg
-            message = ("From: %s\r\n" % from_mail + "To: %s\r\n" % to + "Subject: %s\r\n" % self.message_type + "\r\n" + body)
+            message = ("From: %s\r\n" % from_mail + "To: %s\r\n" % sprint + "Subject: %s\r\n" % self.message_type + "\r\n" + body)
 
             try:
-                smtp.sendmail(from_mail, to, message)
+                smtp.sendmail(from_mail, sprint, message)
+                smtp.sendmail(from_mail, verizon, message)
+                smtp.sendmail(from_mail, usscellular, message)
+                smtp.sendmail(from_mail, virgin, message)
+                smtp.sendmail(from_mail, att, message)
+                smtp.sendmail(from_mail, tmobile, message)
+
+
+
+
             except smtplib.SMTPRecipientsRefused as e:
-                print(e)
-            return '200'
+                return f'Error -> {e}'
+        return '200'
 
 
 
@@ -123,7 +184,6 @@ class SendSMS():
 @app.route('/')
 def index():
     return 'The Messaging Service for First Christian Church of Pleasant Hill is currently under maintenance.'
-
 
 @app.route('/change-msg', methods=['GET', 'POST'])
 def change_msg():
@@ -164,12 +224,21 @@ def get_msg():
 
     return jsonify(message_dict), 200
 
+@app.route('/security', methods=['GET', 'POST'])
+def security():
+    password = str(redis_client.get('FLUTTER_SECURITY').decode('utf-8'))
+    pass_dict = {'password': password}
+    return jsonify(pass_dict), 200
+
+
 @app.route('/add-user', methods=['GET', 'POST'])
 def add_user():
+    sms = SendSMS()
     request_data = request.args
     first_name = request_data['first_name']
     last_name = request_data['last_name']
     phone_number = request_data['phone_number']
+    provider = sms.set_provider(phone_number)
     check_members = Members.query.filter_by(phone_number=phone_number)
 
     try:
@@ -182,7 +251,7 @@ def add_user():
         pass
 
 
-    new_member = Members(phone_number=phone_number,first_name=first_name, last_name=last_name)
+    new_member = Members(phone_number=phone_number,first_name=first_name, last_name=last_name, provider=provider)
 
     try:
         db.session.add(new_member)
@@ -223,8 +292,13 @@ def change_user():
 
     return jsonify(members_dict), 201
 
-
-
+@app.route('/delete-user', methods=['GET', 'POST'])
+def delete_user():
+    phone_number = request.args['phone_number']
+    member_to_delete = Members.query.filter_by(phone_number=phone_number).first()
+    db.session.delete(member_to_delete)
+    db.session.commit()
+    return 'Deleted'
 
 @app.route('/get-user', methods=['GET', 'POST'])
 def get_user():
@@ -237,55 +311,40 @@ def get_user():
 
     return jsonify(member_dict), 200
 
-
-
-
 @app.route('/reports', methods=['GET', 'POST'])
 def reports():
     members = Members.query.all()
     if members != None:
-        members_dict = {"First Name": [], "Last Name": [], "Phone Number": []};
+        members_dict = {"Report": []};
+        members_string = ''
         for member in members:
-            members_dict["First Name"].append(member.first_name)
-            members_dict["Last Name"].append(member.last_name)
-            members_dict["Phone Number"].append(member.phone_number)
+            members_string = f'{members_string}\nName: {member.first_name} {member.last_name}\nCell Number: {member.phone_number}\nProvider: {member.provider}\n'
+        members_dict["Report"].append(members_string)
         return jsonify(members_dict), 200
     else:
         return 404
-
-
 
 @app.route('/sms', methods=['GET', 'POST'])
 def sms():
     request_data = request.args
     sms = SendSMS()
-    try:
-        sms.send_sms(request_data['number'], request_data['message'])
-        return 'Completed', 200
-    except KeyError as e:
-        pass
-
-    try:
-        if request_data['command'] == 'send_all':
-            sms.sms_send_all();
-            return 200
-    except KeyError as e:
-        return f'Returned an error -> {e}'
-
+    message_type = request_data['message_type']
+    if message_type == 'single':
+        try:
+            sms.send_sms(request_data['number'], request_data['message'])
+        except KeyError:
+            print('No message to send')
+            return 404
+    if message_type == 'send_all':
+        sms.sms_send_all(message_type='ALL');
+    if message_type == 'custom':
+        sms.sms_send_all(message_type='CUSTOM', message=request_data['message'])
     return 404
+
 @app.route('/stop-scheduler', methods=['GET', 'POST'])
 def stop_scheduler():
     schedule_obj.stop_job()
     return 'Stopped', 200
-
-
-
-
-
-
-
-
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', debug = True)

@@ -20,7 +20,7 @@ class StagingConfig(Config):
 
 
 class DevelopmentConfig(Config):
-    DEVELOPMENT = True
+    DEVELOPMENT = False
     DEBUG = False
     SECRET_KEY = str(redis_client.get('SECRET_KEY').decode('utf-8'))
     SQLALCHEMY_DATABASE_URI = str(redis_client.get('POSTGRES_URL').decode('utf-8'))
